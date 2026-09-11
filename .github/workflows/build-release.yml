@@ -1,0 +1,86 @@
+name: Build and release plugin
+
+# Runs on every push to main/master. Also runnable by hand from the Actions
+# tab (useful right after setting up the remote, or to re-run without a new
+# commit).
+#
+# The version-bump commit this workflow pushes back includes "[skip ci]" in
+# its message, which GitHub Actions honors natively for push events — that
+# commit does not re-trigger this workflow, so there's no infinite loop.
+#
+# Note: if branch protection on main/master requires PRs or blocks direct
+# pushes, the "Commit and push version bump" step below will fail — either
+# exempt the github-actions bot or drop that restriction for this branch.
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PLUGIN_SLUG: club-members-code-login
+  PLUGIN_FILE: plugin-code/club-members-code-login.php
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump patch version
+        id: bump
+        run: |
+          set -euo pipefail
+
+          current=$(grep -m1 -oE 'Version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' "$PLUGIN_FILE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          IFS='.' read -r major minor patch <<< "$current"
+          new="$major.$minor.$((patch + 1))"
+
+          sed -i -E "s/(Version:[[:space:]]*)[0-9]+\.[0-9]+\.[0-9]+/\1$new/" "$PLUGIN_FILE"
+
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          echo "Bumped $current -> $new"
+
+      - name: Commit and push version bump
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$PLUGIN_FILE"
+          git commit -m "Bump version to $NEW_VERSION [skip ci]"
+          git tag "v$NEW_VERSION"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$NEW_VERSION"
+
+      - name: Build plugin zip
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          set -euo pipefail
+          build_dir="build/$PLUGIN_SLUG"
+          mkdir -p "$build_dir"
+          cp -r plugin-code/. "$build_dir/"
+          (cd build && zip -r "../${PLUGIN_SLUG}-${NEW_VERSION}.zip" "$PLUGIN_SLUG")
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          set -euo pipefail
+          gh release create "v$NEW_VERSION" \
+            "${PLUGIN_SLUG}-${NEW_VERSION}.zip" \
+            --title "v$NEW_VERSION" \
+            --generate-notes

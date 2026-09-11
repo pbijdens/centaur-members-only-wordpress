@@ -4,6 +4,9 @@
  * Description: Inloggen voor leden via een e-mail code. Beperkt toegang tot inhoud én beschermde uploads voor gebruikers met een geverifieerd e-mailadres (whitelist), plus alle andere ingelogde gebruikers met minstens leesrechten.
  * Version: 1.2.0
  * Author: (Pieter-Bas IJdens)
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * Tested up to: 6.9.4
  */
 
 if (!defined('ABSPATH')) exit;
