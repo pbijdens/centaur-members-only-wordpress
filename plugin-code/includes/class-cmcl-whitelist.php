@@ -26,21 +26,17 @@ class CMCL_Whitelist {
         if (!current_user_can('manage_options')) wp_die('Forbidden');
         check_admin_referer('cmcl_upload_whitelist');
 
-        if (empty($_FILES['whitelist_file']['tmp_name'])) {
+        if (empty($_FILES['whitelist_file']['tmp_name']) || !is_uploaded_file($_FILES['whitelist_file']['tmp_name'])) {
             $this->redirect_with_err('Geen bestand geselecteerd.');
         }
 
-        $raw = file_get_contents($_FILES['whitelist_file']['tmp_name']);
-        if ($raw === false) {
-            $this->redirect_with_err('Kon het bestand niet lezen.');
+        $emails = CMCL_Whitelist_Import::extract_emails_from_upload($_FILES['whitelist_file']['tmp_name']);
+        if (is_wp_error($emails)) {
+            $this->redirect_with_err($emails->get_error_message());
         }
 
-        $emails = [];
-        foreach (preg_split("/\R/u", $raw) as $line) {
-            $line = trim($line);
-            if ($line === '' || substr($line, 0, 1) === '#') continue;
-            $email = self::normalize_email($line);
-            if ($email && is_email($email)) $emails[] = $email;
+        if (empty($emails)) {
+            $this->redirect_with_err('Geen geldige e-mailadressen gevonden in dit bestand.');
         }
 
         $result = self::replace_from_upload($emails);

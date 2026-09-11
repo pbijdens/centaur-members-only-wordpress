@@ -13,6 +13,7 @@ define('CMCL_PLUGIN_DIR', plugin_dir_path(__FILE__));
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-core.php';
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-signin-page.php';
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-whitelist.php';
+require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-whitelist-import.php';
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-auth.php';
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-session.php';
 require_once CMCL_PLUGIN_DIR . 'includes/class-cmcl-page-protection.php';

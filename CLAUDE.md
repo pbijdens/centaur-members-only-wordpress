@@ -12,7 +12,8 @@ No build step, no composer/npm, no tests. It's a plain classic WP plugin (no nam
 |---|---|---|
 | `class-cmcl-core.php` | `CMCL_Core` | All shared constants, plus `ensure_role()`/`ensure_shared_user()`/`current_user_is_club_member()` — cross-cutting helpers several other classes call |
 | `class-cmcl-activator.php` | `CMCL_Activator` | `activate()`/`deactivate()`, bound directly via `register_activation_hook`/`register_deactivation_hook` in the bootstrap (static methods, not instantiated) |
-| `class-cmcl-whitelist.php` | `CMCL_Whitelist` | Whitelist option storage, email normalization, the `.txt`/`.csv` upload handler |
+| `class-cmcl-whitelist.php` | `CMCL_Whitelist` | Whitelist storage/CRUD (add/update/delete/replace), email normalization |
+| `class-cmcl-whitelist-import.php` | `CMCL_Whitelist_Import` | Turns an uploaded file (text/CSV/HTML/.xlsx, any of them mislabeled) into a flat list of emails |
 | `class-cmcl-signin-page.php` | `CMCL_Signin_Page` | Creates/self-heals the sign-in page, resolves its URL |
 | `class-cmcl-auth.php` | `CMCL_Auth` | The `[club_members_signin]` shortcode + send-code/verify-code POST handlers + code option housekeeping |
 | `class-cmcl-session.php` | `CMCL_Session` | Hard 24h session cap + blocking the shared user from `/wp-admin` |
@@ -75,7 +76,7 @@ Storage (`CMCL_Whitelist`, option `cmcl_whitelist_emails`) is an associative arr
 
 Three ways to manage it, all on the settings page:
 
-- **Bulk upload** (`handle_upload()` → `replace_from_upload()`): same `.txt`/`.csv`, one-email-per-line format as before (blank lines and `#`-prefixed lines ignored). Still a wholesale replace of the *unprotected* entries, but **protected entries are always kept**, even when absent from the uploaded file, and are never downgraded to unprotected by a re-upload.
+- **Bulk upload** (`handle_upload()` → `CMCL_Whitelist_Import::extract_emails_from_upload()` → `replace_from_upload()`): accepts `.txt`/`.csv`/`.xls`/`.xlsx`, but **the file's actual bytes decide how it's read, not the extension or MIME type**. A genuine Office Open XML file (detected by its `PK\x03\x04` ZIP signature) gets structure-aware parsing of its first sheet — "first" resolved via `workbook.xml`'s `<sheets>` order + `workbook.xml.rels`, *not* assumed to be `sheet1.xml` on disk (exporters can reorder tabs). Everything else — plain text, CSV, a legacy binary `.xls`, or an HTML table someone saved with an `.xls`/`.xlsx` extension by mistake (a real recurring failure mode: Excel's "Save As" can silently produce an HTML file with that extension) — is scanned as raw text. Either way the actual extraction is the same permissive regex scan (`CMCL_Whitelist_Import::extract_emails_from_text()`, pattern in `EMAIL_SCAN_PATTERN`) pulling every email-shaped substring out of the blob, so multiple addresses in one cell/line separated by anything (commas, spaces, semicolons, whatever) all get picked up, each candidate re-validated with `is_email()`. An upload that yields zero addresses is rejected with an error and leaves the existing list untouched — it never silently wipes the whitelist. Still a wholesale replace of the *unprotected* entries, but **protected entries are always kept**, even when absent from the uploaded file, and are never downgraded to unprotected by a re-upload.
 - **Add one entry** (`handle_add_entry()` → `add_entry()`): email + a "Beschermd" checkbox, from a small form above the table. Rejects invalid emails and duplicates.
 - **Per-row edit/delete** (`handle_manage_entry()` → `update_entry()` / `delete_entry()`): each row in the table is its own `<form>` (HTML `form="..."` attribute binding table cells to a form that can't legally wrap `<tr>`/`<td>`, since a `<table>` row can't be a `<form>` child) with an editable email field, a protected checkbox, and Save/Delete buttons. **Deleting a protected entry is refused server-side** (not just a disabled button) — it must be unprotected via Save first. This is the only real teeth "protected" has: it's not an access-control concept, just a safeguard against a bulk upload or a stray delete wiping out an address you want to keep around.
 
@@ -99,5 +100,6 @@ These appear to be accepted tradeoffs for a small-club use case rather than bugs
 - No rate limiting on code-send requests (mail-bombing a whitelisted inbox is possible).
 - Whitelist membership is distinguishable from the error message on send/verify (minor enumeration).
 - Page protection covers only `post_type = page`, not posts or custom post types.
-- Whitelist upload always replaces the full list; no partial add/remove.
+- Legacy binary `.xls` (pre-2007 BIFF format) isn't parsed with real structure awareness — it falls into `CMCL_Whitelist_Import`'s raw-text regex scan, same as HTML-mislabeled-as-xlsx. This works in practice for simple exports (ASCII cell text tends to appear as recognizable byte runs in the file), but isn't a real BIFF parser; genuinely unusual/Unicode-heavy legacy `.xls` files could yield fewer matches than a proper parser would. A real `.xlsx` gets full structure-aware first-sheet parsing instead (see "Whitelist management").
+- `.xlsx` parsing requires the PHP `zip` extension (`ZipArchive`); if it's unavailable the upload is rejected with a clear error rather than silently failing.
 - Everyone shares one WP identity, so there's no per-member action audit trail by design.

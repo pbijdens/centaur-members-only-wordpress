@@ -45,9 +45,9 @@ class CMCL_Admin_Settings {
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" enctype="multipart/form-data">
                 <?php wp_nonce_field('cmcl_upload_whitelist'); ?>
                 <input type="hidden" name="action" value="cmcl_upload_whitelist" />
-                <input type="file" name="whitelist_file" accept=".txt,.csv,text/plain,text/csv" required />
+                <input type="file" name="whitelist_file" accept=".txt,.csv,.xls,.xlsx,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
                 <?php submit_button('Vervang ledenlijst', 'secondary'); ?>
-                <p style="color:#666;">Formaat: één e-mail adres per regel (lege regels en regels die beginnen met # worden genegeerd). Beschermde adressen (zie hieronder) blijven altijd behouden, ook als ze niet in het bestand staan.</p>
+                <p style="color:#666;">Tekstbestand (.txt/.csv) of Excel-bestand (.xlsx, eerste werkblad). Elk e-mailadres dat ergens in het bestand voorkomt wordt geïmporteerd, ongeacht hoe ze gescheiden zijn (per regel, met komma's, meerdere per cel, etc.) — je hoeft de opmaak niet exact te volgen. Werd het bestand per ongeluk als Excel opgeslagen terwijl het eigenlijk een HTML-tabel is (gebeurt weleens bij "Opslaan als" vanuit Excel)? Ook dat wordt automatisch herkend en gelezen. Beschermde adressen (zie hieronder) blijven altijd behouden, ook als ze niet in het bestand staan.</p>
             </form>
 
             <h2>Aanmeldpagina</h2>
