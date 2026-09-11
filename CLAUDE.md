@@ -69,7 +69,17 @@ Handled by `CMCL_Attachment_Protection`. Toggling "Alleen voor leden (beveiligde
 
 ## Whitelist management
 
-Settings → "Aanmelden voor leden" admin page (`manage_options` capability only): upload a `.txt`/`.csv` file, one email per line, blank lines and `#`-prefixed lines ignored. **This fully replaces** the existing whitelist (`update_option`, not merge) — there is no incremental add/remove UI, no dedupe-with-warning, no history of what changed.
+Settings → "Aanmelden voor leden" admin page — every entry point (`add_options_page` itself, `CMCL_Admin_Settings::admin_page()`, and every `CMCL_Whitelist` admin-post handler) requires `manage_options`, so the list is never visible or reachable by non-admins; there is no shortcode, REST field, or AJAX action exposing it.
+
+Storage (`CMCL_Whitelist`, option `cmcl_whitelist_emails`) is an associative array `[normalized_email => is_protected (bool)]`. `CMCL_Whitelist::get_entries()` self-heals the legacy pre-protection format (a plain sequential list of email strings) into this shape on read, without writing anything back until the next actual mutation.
+
+Three ways to manage it, all on the settings page:
+
+- **Bulk upload** (`handle_upload()` → `replace_from_upload()`): same `.txt`/`.csv`, one-email-per-line format as before (blank lines and `#`-prefixed lines ignored). Still a wholesale replace of the *unprotected* entries, but **protected entries are always kept**, even when absent from the uploaded file, and are never downgraded to unprotected by a re-upload.
+- **Add one entry** (`handle_add_entry()` → `add_entry()`): email + a "Beschermd" checkbox, from a small form above the table. Rejects invalid emails and duplicates.
+- **Per-row edit/delete** (`handle_manage_entry()` → `update_entry()` / `delete_entry()`): each row in the table is its own `<form>` (HTML `form="..."` attribute binding table cells to a form that can't legally wrap `<tr>`/`<td>`, since a `<table>` row can't be a `<form>` child) with an editable email field, a protected checkbox, and Save/Delete buttons. **Deleting a protected entry is refused server-side** (not just a disabled button) — it must be unprotected via Save first. This is the only real teeth "protected" has: it's not an access-control concept, just a safeguard against a bulk upload or a stray delete wiping out an address you want to keep around.
+
+Admin notices (`render_notices()`) read `cmcl_msg`/`cmcl_err` query args and print them as standard WP `notice notice-success`/`notice-error` boxes — this is also where upload failures now actually surface in the UI (previously `handle_upload()` set a `cmcl` query arg that `admin_page()` never read).
 
 ## Key constants (all on `CMCL_Core`)
 
